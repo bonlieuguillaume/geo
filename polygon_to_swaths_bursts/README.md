@@ -1,7 +1,7 @@
 # polygon → swaths & bursts (Sentinel-1 SLC)
 
-Given a Sentinel-1 SLC product and an area of interest, return the sub-swaths and
-the bursts that the AOI intersects.
+Given a Sentinel-1 SLC product and an area of interest — inline WKT, or a WKT or
+GeoJSON file — return the sub-swaths and the bursts that the AOI intersects.
 
 ---
 
@@ -99,8 +99,10 @@ point rather than just four corners lets the polygon follow the burst's real
 curvature. The row is picked as the one *closest* to the computed boundary rather
 than strictly equal to it — the last grid row sits at `numberOfLines − 1`.
 
-**Step 6 — Parse the area of interest.** WKT or GeoJSON, inline or as a file path,
-detected automatically; a multi-feature `FeatureCollection` is merged into one
+**Step 6 — Parse the area of interest.** WKT inline or from a file, GeoJSON from a
+file only — quoting JSON on a command line is error-prone, so inline GeoJSON strings
+are rejected with an explicit message. The format is detected from the content, not
+from the file extension; a multi-feature `FeatureCollection` is merged into one
 geometry. Coordinates in lon/lat (EPSG:4326), the convention of both Sentinel-1
 annotations and GeoJSON (RFC 7946).
 
@@ -153,13 +155,13 @@ conda env update -n geo -f ../env_light.yml     # numpy, shapely, geopandas, fol
 
 ```bash
 # inline WKT, strict test
-python polygon_to_swaths_bursts.py product.SAFE "POLYGON ((2.2 48.8, 2.5 48.8, 2.5 49.0, 2.2 49.0, 2.2 48.8))"
+python polygon_to_swaths_bursts.py --slc-path product.SAFE --polygon "POLYGON ((2.2 48.8, 2.5 48.8, 2.5 49.0, 2.2 49.0, 2.2 48.8))"
 
 # AOI read from a GeoJSON file, recall-oriented, JSON output
-python polygon_to_swaths_bursts.py product.zip aoi.geojson --coarse --json
+python polygon_to_swaths_bursts.py --slc-path product.zip --polygon aoi.geojson --coarse --json
 
 # also export the footprints of the selected bursts
-python polygon_to_swaths_bursts.py product.zip aoi.wkt --geojson hits.geojson
+python polygon_to_swaths_bursts.py --slc-path product.zip --polygon aoi.wkt --geojson hits.geojson
 ```
 
 ```
@@ -170,6 +172,8 @@ Intersecting swaths: IW1, IW2
 
 | Option | Effect |
 | --- | --- |
+| `--slc-path PATH` | **required** — the `.SAFE` directory or `.zip` archive |
+| `--polygon AOI` | **required** — inline WKT, or a path to a WKT / GeoJSON file |
 | `--coarse` | dilate footprints before the test (favours recall) |
 | `--coarse-margin DEG` | dilation margin in degrees, default `0.02` (~2 km) |
 | `--json` | print `{swath: [bursts]}` as JSON instead of text |
@@ -185,7 +189,7 @@ from polygon_to_swaths_bursts import get_intersecting_bursts, load_burst_footpri
 
 hits, summary = get_intersecting_bursts(
     "product.SAFE",
-    "aoi.geojson",        # or inline WKT / GeoJSON, or a dict
+    "aoi.geojson",        # or a .wkt file, an inline WKT string, or a dict
     coarse=True,          # optional, default False
     coarse_margin=0.02,   # optional
 )
@@ -197,7 +201,7 @@ footprints = load_burst_footprints("product.SAFE")   # every burst, for inspecti
 
 ### Notebook
 
-`polygon_to_swaths_&_bursts.ipynb` holds the same functions cell by cell, plus a
+`polygon_to_swaths_bursts.ipynb` holds the same functions cell by cell, plus a
 folium map that draws every burst of the product — the selected ones in red, the
 others in grey, the AOI in blue. It is the quickest way to check a result visually.
 If the map does not render in VS Code, save it and open it in a browser:
@@ -208,4 +212,4 @@ If the map does not render in VS Code, save it and open it in a browser:
 | File | Role |
 | --- | --- |
 | `polygon_to_swaths_bursts.py` | library + command-line interface |
-| `polygon_to_swaths_&_bursts.ipynb` | same functions, interactive, with a map |
+| `polygon_to_swaths_bursts.ipynb` | same functions, interactive, with a map |

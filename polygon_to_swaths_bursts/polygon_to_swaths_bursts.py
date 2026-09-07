@@ -1,7 +1,7 @@
 """Find the Sentinel-1 SLC swaths and bursts intersecting a polygon.
 
-The area of interest is given as WKT or GeoJSON, either as a literal string or
-as a path to a file; the format is detected automatically.
+The area of interest is given as WKT — inline or as a file — or as a GeoJSON
+file; the format is detected from the content.
 
 Usable both as a library (import the functions below) and as a command-line
 tool (see `python polygon_to_swaths_bursts.py --help`).
@@ -52,32 +52,43 @@ def _geometry_from_geojson(obj):
 
 
 def parse_polygon(polygon):
-    """Parse an area of interest given as WKT or GeoJSON, literal or file path.
+    """Parse an area of interest: WKT inline or from a file, GeoJSON from a file.
 
-    The format is detected automatically:
-      - an existing file path: its content is read, then parsed as below;
-      - a dict, or a string starting with '{': GeoJSON;
-      - anything else: WKT.
+    The format is detected automatically, from the content rather than from the
+    file extension:
+      - an existing file path: its content is read, and may be WKT or GeoJSON;
+      - a string that is not a path: WKT only;
+      - a dict (Python API only): GeoJSON.
+
+    Inline GeoJSON strings are rejected on purpose: quoting JSON on a command
+    line is error-prone, so GeoJSON is accepted as a file only.
 
     Coordinates are expected in lon/lat (EPSG:4326), the convention of both
     Sentinel-1 annotations and GeoJSON (RFC 7946).
     """
-    if isinstance(polygon, (str, Path)):
-        text = str(polygon).strip()
-        # A path has no newline and stays short: cheap enough to probe
-        if "\n" not in text and len(text) < 4096:
-            try:
-                if Path(text).is_file():
-                    text = Path(text).read_text(encoding="utf-8").strip()
-            except (OSError, ValueError):
-                pass  # not a usable path, treat the string as a geometry
-        polygon = text
-
     if isinstance(polygon, dict):
         return _geometry_from_geojson(polygon)
-    if polygon.startswith("{"):
-        return _geometry_from_geojson(json.loads(polygon))
-    return shapely_wkt.loads(polygon)
+
+    text = str(polygon).strip()
+    from_file = False
+    # A path has no newline and stays short: cheap enough to probe
+    if "\n" not in text and len(text) < 4096:
+        try:
+            if Path(text).is_file():
+                text = Path(text).read_text(encoding="utf-8").strip()
+                from_file = True
+        except (OSError, ValueError):
+            pass  # not a usable path, treat the string as a geometry
+
+    if text.startswith("{"):
+        if not from_file:
+            raise ValueError(
+                "inline GeoJSON is not accepted: save it to a file and pass its "
+                "path instead (quoting JSON on a command line is error-prone). "
+                "Inline geometry must be WKT."
+            )
+        return _geometry_from_geojson(json.loads(text))
+    return shapely_wkt.loads(text)
 
 
 def _read_annotation_files(slc_path):
@@ -209,9 +220,9 @@ def get_intersecting_bursts(
     slc_path : str | Path
         Path to the SLC product (.SAFE directory or .zip archive).
     polygon : str | Path | dict
-        Area of interest as WKT or GeoJSON, given as a literal string, a
-        parsed GeoJSON dict, or a path to a file holding either. The format
-        is detected automatically; coordinates are lon/lat (EPSG:4326).
+        Area of interest: an inline WKT string, a path to a WKT or GeoJSON
+        file, or a parsed GeoJSON dict. Inline GeoJSON strings are rejected —
+        pass a file instead. Coordinates are lon/lat (EPSG:4326).
     coarse : bool
         False (default): strict test against the edge-matched footprints.
         True: footprints are dilated by coarse_margin before the test —
@@ -252,8 +263,10 @@ def get_intersecting_bursts(
 DESCRIPTION = """\
 Find the Sentinel-1 SLC swaths and bursts intersecting a polygon.
 
-The area of interest is read as WKT or GeoJSON, passed either inline or as a
-file path; the format is detected automatically. Coordinates must be lon/lat
+The area of interest is read as WKT, inline or from a file, or as a GeoJSON
+file. Inline GeoJSON is not accepted: quoting JSON on a command line is
+error-prone, so save it to a file and pass its path. The format is detected
+from the content, not from the file extension. Coordinates must be lon/lat
 (EPSG:4326).
 
 How it works: no SAR library is needed, everything comes from the product
@@ -270,13 +283,13 @@ Polygons straddling the antimeridian (+/-180 deg) are handled.
 EPILOG = """\
 examples:
   # inline WKT, strict test, human-readable output
-  python polygon_to_swaths_bursts.py S1B_IW_SLC__1SDV_....SAFE "POLYGON ((2.2 48.8, 2.5 48.8, 2.5 49.0, 2.2 49.0, 2.2 48.8))"
+  python polygon_to_swaths_bursts.py --slc-path S1B_IW_SLC__1SDV_....SAFE --polygon "POLYGON ((2.2 48.8, 2.5 48.8, 2.5 49.0, 2.2 49.0, 2.2 48.8))"
 
   # AOI read from a GeoJSON file, recall-oriented test, JSON output
-  python polygon_to_swaths_bursts.py product.zip aoi.geojson --coarse --json
+  python polygon_to_swaths_bursts.py --slc-path product.zip --polygon aoi.geojson --coarse --json
 
   # write the footprints of the selected bursts as GeoJSON
-  python polygon_to_swaths_bursts.py product.zip aoi.wkt --geojson hits.geojson
+  python polygon_to_swaths_bursts.py --slc-path product.zip --polygon aoi.wkt --geojson hits.geojson
 """
 
 
@@ -288,13 +301,18 @@ def _build_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "slc_path",
+        "--slc-path",
+        required=True,
+        metavar="PATH",
         help="path to the Sentinel-1 SLC product (.SAFE directory or .zip archive)",
     )
     parser.add_argument(
-        "polygon",
-        help="area of interest: a WKT or GeoJSON string, or a path to a file "
-        "holding either (format detected automatically), in lon/lat EPSG:4326",
+        "--polygon",
+        required=True,
+        metavar="AOI",
+        help="area of interest, in lon/lat EPSG:4326: an inline WKT string, or "
+        "a path to a WKT or GeoJSON file. Inline GeoJSON is not accepted — pass "
+        "it as a file",
     )
     parser.add_argument(
         "--coarse",
