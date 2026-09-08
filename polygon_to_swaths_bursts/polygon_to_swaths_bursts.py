@@ -170,6 +170,18 @@ def _burst_footprints_from_annotation(xml_bytes):
     ])
     grid_lines = np.unique(pts[:, 0])
 
+    # The whole method assumes the grid rows sit on the burst boundaries. Check
+    # it: otherwise two boundaries could silently collapse onto the same row and
+    # yield degenerate or duplicated footprints.
+    expected = np.arange(n_bursts + 1) * lines_per_burst
+    expected[-1] -= 1  # the last grid row sits at numberOfLines - 1
+    nearest = grid_lines[np.argmin(np.abs(grid_lines[:, None] - expected), axis=0)]
+    if len(set(nearest)) != len(expected):
+        raise ValueError(
+            f"{swath}: the geolocation grid rows do not match the burst "
+            f"boundaries ({len(grid_lines)} rows for {n_bursts} bursts)"
+        )
+
     def ring_points(target_line, reverse=False):
         # Grid points on the row closest to target_line
         line = grid_lines[np.argmin(np.abs(grid_lines - target_line))]
