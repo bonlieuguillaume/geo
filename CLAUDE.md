@@ -41,3 +41,7 @@ rewriting an existing line over appending a new one, and drop what no longer hel
   intersects, read from the product annotation XML without touching the image data.
   Module + CLI, a mirrored notebook, and a `README.md` detailing the algorithm,
   its accuracy limits and its usage.
+- `otb/` — Orfeo ToolBox chain turning SLC products into orthorectified gamma0
+  VV/VH GeoTIFFs on a common grid. Imports `polygon_to_swaths_bursts` through
+  `sys.path` (the one cross-folder dependency in this repo): renaming or moving
+  that folder breaks this notebook.
