@@ -44,9 +44,9 @@ rewriting an existing line over appending a new one, and drop what no longer hel
   intersects, read from the product annotation XML without touching the image data.
   Module + CLI, a mirrored notebook, and a `README.md` detailing the algorithm,
   its accuracy limits and its usage.
-- `otb/` (folder to be renamed) — turns SLC products into gamma0 RTC VV/VH GeoTIFFs
-  on a common grid, by submitting RTC jobs to **ASF HyP3** and regridding the
-  results locally. OTB, ISCE2 and ISCE3 were all ruled out first: OTB has no
+- `asf/` — turns Sentinel-1 acquisitions into gamma0 RTC VV/VH GeoTIFFs on a
+  common grid, by submitting RTC jobs to **ASF HyP3** and regridding the results
+  locally. Three modes: whole SLC scene, SLC burst by burst, or GRD. OTB, ISCE2 and ISCE3 were all ruled out first: OTB has no
   terrain flattening and no Windows conda-forge build, the ISCE family is
   Linux-only and does not calibrate radiometrically. Imports
   `polygon_to_swaths_bursts` through `sys.path` (the one cross-folder dependency
