@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# SAR data: heavy products that must never be committed
+hyp3_downloads/
+output/
+*.SAFE/

@@ -27,6 +27,9 @@ own README before changing anything.
   with the user in French.
 - When a tool exists as both a notebook and a module, both hold the same functions:
   any change must be applied to the two in the same edit.
+- A notebook whose opening markdown cell describes what each cell does keeps that
+  description in sync: adding, removing or reordering a cell means updating the
+  table in the same edit. A stale walkthrough is worse than none.
 
 ## Maintaining this file
 
@@ -41,7 +44,10 @@ rewriting an existing line over appending a new one, and drop what no longer hel
   intersects, read from the product annotation XML without touching the image data.
   Module + CLI, a mirrored notebook, and a `README.md` detailing the algorithm,
   its accuracy limits and its usage.
-- `otb/` — Orfeo ToolBox chain turning SLC products into orthorectified gamma0
-  VV/VH GeoTIFFs on a common grid. Imports `polygon_to_swaths_bursts` through
-  `sys.path` (the one cross-folder dependency in this repo): renaming or moving
-  that folder breaks this notebook.
+- `otb/` (folder to be renamed) — turns SLC products into gamma0 RTC VV/VH GeoTIFFs
+  on a common grid, by submitting RTC jobs to **ASF HyP3** and regridding the
+  results locally. OTB, ISCE2 and ISCE3 were all ruled out first: OTB has no
+  terrain flattening and no Windows conda-forge build, the ISCE family is
+  Linux-only and does not calibrate radiometrically. Imports
+  `polygon_to_swaths_bursts` through `sys.path` (the one cross-folder dependency
+  in this repo): renaming or moving that folder breaks this notebook.
