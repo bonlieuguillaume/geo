@@ -6,8 +6,12 @@ own README before changing anything.
 
 ## Environment
 
-- conda/miniforge env named `geo`, Python 3.11, declared in `env_light.yml`.
-- Update it with `mamba env update -n geo -f env_light.yml`.
+- conda/miniforge env named `geo`, Python 3.11. No single env file: each tool
+  folder carries its own `env_<tool>.yml` (`polygon_to_swaths_bursts/`, `asf/` —
+  the latter covers both tools), all declaring the same env `geo`.
+- Update it with `mamba env update -n geo -f <tool>/env_<tool>.yml`. The user
+  maintains these files and the env themselves: hand them the conda-forge package
+  names to add, do not edit the yml files.
 - **Every dependency must be installable from conda-forge.** This is a hard
   requirement for all tools here: no pip-only packages, no heavyweight SAR stacks
   (SNAP, ISCE, GAMMA) — the tools reimplement what they need from product metadata.
@@ -60,3 +64,16 @@ rewriting an existing line over appending a new one, and drop what no longer hel
   Linux-only and does not calibrate radiometrically. Imports
   `polygon_to_swaths_bursts` through `sys.path` (the one cross-folder dependency
   in this repo): renaming or moving that folder breaks this notebook.
+- `aoi_to_slc/` — webmap in a notebook (ipyleaflet + ipywidgets): draw or paste
+  an AOI, list the Sentinel-1 SLC/GRD scenes covering it, tick some, write their
+  S3 paths (`/eodata/Sentinel-1/SAR/.../<product>.SAFE`, the downloader's
+  convention; `s3://` and bare-key forms optional) to a text file in
+  `path_files/`, one per line, plus the AOI as `<name>_aoi.geojson`. **No download
+  here**: the user's downloader, in another repo, takes that file and an output
+  folder. Search = CDSE STAC hit directly with `requests`, anonymous, no
+  credentials. Not asf_search: no `eodata` paths there. **GRD = the COG variant**,
+  the only one in the CDSE STAC — a distinct product from the original GRD (other
+  checksum suffix, `IW_GRDH_1S-COG` folder), accepted deliberately since the
+  user's chain runs SNAP 13 (COG readable from SNAP 10). If originals are ever
+  needed, CDSE OData lists both with `S3Path`: rewrite `search_products` only.
+  The module holds everything and the notebook only drives it — not a mirror.
