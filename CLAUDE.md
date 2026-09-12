@@ -20,6 +20,12 @@ own README before changing anything.
 - Windows. The "Miniforge Prompt" is `cmd.exe` (no `PS` in the prompt); VS Code's
   integrated terminal is PowerShell. Shell quoting differs between the two — matters
   when documenting CLI examples.
+- **Never overwrite the user's own values.** Parameter cells hold what they chose:
+  input paths, AOI, mode, resolution, output directories. `NotebookEdit` rewrites a
+  whole cell, so editing one line of such a cell silently restores every other value
+  from whenever the cell was last read — and the user's edits since are lost. Re-read
+  the cell immediately before writing it, carry the current values across verbatim,
+  and if a value cannot be confirmed, ask instead of guessing.
 
 ## Conventions
 
@@ -45,8 +51,11 @@ rewriting an existing line over appending a new one, and drop what no longer hel
   Module + CLI, a mirrored notebook, and a `README.md` detailing the algorithm,
   its accuracy limits and its usage.
 - `asf/` — turns Sentinel-1 acquisitions into gamma0 RTC VV/VH GeoTIFFs on a
-  common grid, by submitting RTC jobs to **ASF HyP3** and regridding the results
-  locally. Three modes: whole SLC scene, SLC burst by burst, or GRD. OTB, ISCE2 and ISCE3 were all ruled out first: OTB has no
+  common grid, by submitting jobs to **ASF HyP3** and regridding the results
+  locally. Two notebooks, because the two HyP3 job types share no options:
+  `asf_gamma0.ipynb` for whole scenes (`RTC_GAMMA`, SLC or GRD, resolution and
+  radiometry configurable) and `asf_gamma0_burst.ipynb` for bursts
+  (`OPERA_RTC_S1`, no options at all, 30 m, one co-pol burst id per job). OTB, ISCE2 and ISCE3 were all ruled out first: OTB has no
   terrain flattening and no Windows conda-forge build, the ISCE family is
   Linux-only and does not calibrate radiometrically. Imports
   `polygon_to_swaths_bursts` through `sys.path` (the one cross-folder dependency

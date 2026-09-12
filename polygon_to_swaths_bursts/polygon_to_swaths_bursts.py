@@ -219,6 +219,15 @@ def load_burst_footprints(slc_path):
         if bursts and bursts[0]["swath"] not in seen_swaths:
             seen_swaths.add(bursts[0]["swath"])
             records.extend(bursts)
+
+    # Without this, an empty list reaches GeoDataFrame and geopandas complains
+    # about a missing geometry column — which says nothing about the real cause
+    if not records:
+        raise ValueError(
+            f"no burst found in {Path(slc_path).name}: a GRD product is already "
+            "debursted and declares an empty burst list, so only SLC products "
+            "can be handled here"
+        )
     return gpd.GeoDataFrame(records, crs="EPSG:4326")
 
 
