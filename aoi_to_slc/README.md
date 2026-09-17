@@ -7,12 +7,16 @@ Copernicus Browser that stops where the download starts: the path file is what
 a downloader takes, with an output folder, to fetch the products. Nothing is
 downloaded here and no credentials are needed.
 
-- `aoi_to_slc.py` — everything: the search (`search_products`), the path file
+- `aoi_to_slc.py` — the logic: the search (`search_products`), the path file
   (`write_path_file`, `s3_paths`, `format_s3_path`), the AOI helpers
-  (`parse_aoi`, `save_aoi`) and the interface (`build_ui`). Usable as a library
-  without the widget packages.
-- `aoi_to_slc.ipynb` — a thin driver of the module: parameters, the interface,
-  and the same calls from plain Python. It does *not* mirror the module.
+  (`parse_aoi`, `save_aoi`), plus a notebook interface (`build_ui`, ipyleaflet +
+  ipywidgets). Usable as a library without the widget packages.
+- `serve.py` + `viewer.html` — **the webmap in the browser**: `python serve.py --open`.
+  A standard-library HTTP server that hands out the page and answers three JSON
+  routes with the module's functions; the page does the map, the drawing and the
+  list with Leaflet + Leaflet.draw. No extra dependency.
+- `aoi_to_slc.ipynb` — the same interface inside a notebook, plus the calls from
+  plain Python. A thin driver of the module, *not* a mirror of it.
 - `path_files/` — where the path files land by default (created on demand).
 
 ## Backend: the CDSE STAC catalogue, hit directly
@@ -63,11 +67,30 @@ No account, no token: the catalogue search is anonymous.
 
 ## Usage
 
-**Notebook.** Fill the parameters cell (path file, path style, map view), run
-the interface cell, draw or paste the AOI, search, tick, *Write S3 paths*. The
-box under the list previews the lines before they are written. The file is
-overwritten each time — one file is one selection — and the AOI is written next
-to it as `<name>_aoi.geojson` unless unticked. See the notebook's opening cell.
+**Browser** — the main way. From the `geo` environment:
+
+```
+python serve.py --open
+python serve.py --port 9000 --path-file C:/data/list.txt --style mount --days 60
+```
+
+The page opens on <http://localhost:8000>. Draw a polygon or a rectangle with
+the toolbar on the map, or paste WKT / GeoJSON in the sidebar and *Use this
+AOI*. Set the dates and criteria, *Search*: the footprints appear on the map and
+in the list. Click a product in the list or on the map to tick it (green); *All*
+/ *None* for the whole list. The path file box previews the lines; *Write S3
+paths* writes them — overwriting the file: one file is one selection — with the
+AOI next to it as `<name>_aoi.geojson` unless *AOI alongside* is unticked. The
+header line reports every step, errors in red. Ctrl+C in the terminal stops the
+server.
+
+`--path-file`, `--style`, `--center LAT LON`, `--zoom`, `--days` and
+`--max-items` set the page's defaults; the path file stays editable in the page,
+a relative one resolving against this folder.
+
+**Notebook.** Same interface inside `aoi_to_slc.ipynb`: fill the parameters
+cell (path file, path style, map view), run the interface cell, draw or paste
+the AOI, search, tick, *Write S3 paths*. See the notebook's opening cell.
 
 **Python.**
 
@@ -100,5 +123,7 @@ or the path of a WKT / GeoJSON file. Coordinates are lon/lat (EPSG:4326).
   longer, nothing more.
 - Sentinel-1 SLC bursts as products are not covered: whole products only here.
   Which bursts of a product cover the AOI is `polygon_to_swaths_bursts`'s job.
-- The interface needs the Jupyter widgets front-end (ipyleaflet, ipywidgets).
-  It works in VS Code; if the map stays blank, JupyterLab is the safe bet.
+- The browser page loads Leaflet, Leaflet.draw and the basemap tiles from the
+  web — like the catalogue search, it needs an internet connection.
+- The notebook interface needs the Jupyter widgets front-end (ipyleaflet,
+  ipywidgets). It works in VS Code; if the map stays blank, use the browser page.

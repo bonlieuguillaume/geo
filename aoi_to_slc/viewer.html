@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AOI → Sentinel-1 products</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: #111827;
+    --panel-border: #1e2d45;
+    --accent: #00d4ff;
+    --aoi: #ff6b35;
+    --sel: #4ade80;
+    --err: #f87171;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+    z-index: 1000;
+  }
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .logo span { color: var(--text-dim); font-weight: 400; }
+  #status {
+    flex: 1;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--text);
+    padding: 4px 10px;
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 4px;
+    background: rgba(0,212,255,0.06);
+    min-height: 1.9em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #status.err { color: var(--err); border-color: rgba(248,113,113,0.4); background: rgba(248,113,113,0.06); }
+  #status.busy { color: var(--accent); }
+
+  /* MAIN LAYOUT */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  .sidebar {
+    width: 340px;
+    background: var(--panel);
+    border-right: 1px solid var(--panel-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .sidebar-top { overflow-y: auto; flex: 0 1 auto; min-height: 0; }
+  .sidebar-top::-webkit-scrollbar { width: 3px; }
+  .sidebar-top::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 2px; }
+
+  .sidebar-section { padding: 14px 16px; border-bottom: 1px solid var(--panel-border); }
+  .section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .section-title span { font-weight: 400; color: var(--text-dim); }
+  .hint { font-size: 0.68rem; color: var(--text-dim); margin-bottom: 8px; }
+
+  /* CONTROLS */
+  .field { display: flex; flex-direction: column; gap: 3px; }
+  .field label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.58rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  input[type=text], input[type=date], select, textarea {
+    background: rgba(0,212,255,0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    color: var(--text);
+    outline: none;
+    width: 100%;
+    color-scheme: dark;
+  }
+  input:focus, select:focus, textarea:focus { border-color: rgba(0,212,255,0.4); }
+  select option { background: var(--panel); color: var(--text); }
+  textarea { font-family: 'Space Mono', monospace; font-size: 0.62rem; resize: vertical; }
+  textarea[readonly] { color: var(--sel); }
+
+  .btn {
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: rgba(0,212,255,0.1); border-color: rgba(0,212,255,0.3); color: var(--accent); }
+  .btn.primary:hover { background: rgba(0,212,255,0.2); }
+  .btn.go { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.3); color: var(--sel); }
+  .btn.go:hover { background: rgba(74,222,128,0.2); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn-row { display: flex; gap: 6px; margin-top: 8px; }
+  .btn-row .btn { flex: 1; }
+  .check {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.72rem; color: var(--text); cursor: pointer; user-select: none;
+  }
+  .check input { accent-color: var(--accent); }
+
+  /* RESULTS LIST — takes the remaining height */
+  .list-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 140px; }
+  .list-header {
+    padding: 10px 16px 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .list-header .btn { padding: 3px 7px; }
+  .list-wrap { flex: 1; overflow-y: auto; }
+  .list-wrap::-webkit-scrollbar { width: 4px; }
+  .list-wrap::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 2px; }
+  .empty { color: var(--text-dim); font-size: 0.7rem; text-align: center; padding: 16px; font-style: italic; }
+
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(30,45,69,0.5);
+    transition: background 0.12s;
+    user-select: none;
+  }
+  .item:hover, .item.hover { background: rgba(0,212,255,0.06); }
+  .item.sel { background: rgba(74,222,128,0.1); }
+  .item .box {
+    width: 12px; height: 12px; flex-shrink: 0;
+    border: 1px solid var(--text-dim); border-radius: 2px;
+  }
+  .item.sel .box { background: var(--sel); border-color: var(--sel); }
+  .item .body { flex: 1; min-width: 0; }
+  .item .date { font-family: 'Space Mono', monospace; font-size: 0.7rem; }
+  .item .sub {
+    font-size: 0.62rem; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .item .size { font-family: 'Space Mono', monospace; font-size: 0.68rem; color: var(--text-dim); white-space: nowrap; }
+
+  /* MAP */
+  #map { flex: 1; background: #060d1a; }
+  /* "Dark" basemap: OpenStreetMap tiles inverted in CSS — no API key, unlike
+     the CARTO dark tiles, which now watermark anonymous requests */
+  .dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(0.9) saturate(0.5); }
+  .leaflet-tooltip.fp {
+    background: rgba(10,14,26,0.9); border: 1px solid rgba(0,212,255,0.35);
+    color: var(--accent); font-family: 'Space Mono', monospace; font-size: 0.6rem;
+  }
+  .leaflet-tooltip.fp::before { display: none; }
+  .leaflet-control-scale-line {
+    background: rgba(10,14,26,0.82) !important;
+    border: 1px solid var(--panel-border) !important;
+    border-top: 2px solid var(--accent) !important;
+    color: var(--text-dim) !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.6rem !important;
+  }
+
+  /* STATUS BAR */
+  .statusbar {
+    background: var(--panel);
+    border-top: 1px solid var(--panel-border);
+    padding: 5px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .statusbar .sep { opacity: 0.3; }
+  #coords { color: var(--accent); min-width: 190px; }
+  #pathInfo { overflow: hidden; text-overflow: ellipsis; }
+
+  /* BASEMAP SWITCHER */
+  .basemap-btns { display: flex; gap: 6px; }
+  .basemap-btns .btn { flex: 1; }
+  .basemap-btns .btn.active { background: rgba(0,212,255,0.1); border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">AOI → S1<span> // CDSE catalogue</span></div>
+  <div id="status">Draw an AOI on the map, or paste one in the sidebar.</div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-top">
+
+      <!-- AOI -->
+      <div class="sidebar-section">
+        <div class="section-title">Area of interest</div>
+        <div class="hint">Draw with the toolbar on the map (polygon or rectangle), or paste WKT / GeoJSON in lon/lat.</div>
+        <textarea id="aoiText" rows="3" placeholder="POLYGON ((lon lat, ...)) — or GeoJSON"></textarea>
+        <div class="btn-row">
+          <button class="btn primary" onclick="useAoiText()">Use this AOI</button>
+          <button class="btn" onclick="clearAll()">Clear</button>
+        </div>
+      </div>
+
+      <!-- SEARCH -->
+      <div class="sidebar-section">
+        <div class="section-title">Search</div>
+        <div class="grid2">
+          <div class="field"><label>From</label><input type="date" id="start"></div>
+          <div class="field"><label>To</label><input type="date" id="end"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Product</label>
+            <select id="product"><option value="SLC">SLC</option><option value="GRD">GRD (COG)</option></select></div>
+          <div class="field"><label>Mode</label>
+            <select id="mode"><option>IW</option><option>EW</option><option>SM</option><option value="">any</option></select></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Orbit</label>
+            <select id="orbit"><option value="">any</option><option>ascending</option><option>descending</option></select></div>
+          <div class="field"><label>Platform</label>
+            <select id="platform"><option value="">any</option><option>S1A</option><option>S1B</option><option>S1C</option><option>S1D</option></select></div>
+        </div>
+        <div class="btn-row"><button class="btn primary" id="searchBtn" onclick="search()">Search</button></div>
+      </div>
+
+      <!-- PATH FILE -->
+      <div class="sidebar-section">
+        <div class="section-title">Path file</div>
+        <div class="field"><label>File (one product per line)</label><input type="text" id="pathFile"></div>
+        <div class="btn-row" style="align-items:center">
+          <label class="check" title="Also write the AOI as <path file>_aoi.geojson, next to the list">
+            <input type="checkbox" id="withAoi" checked> AOI alongside
+          </label>
+          <button class="btn go" id="writeBtn" onclick="writePaths()">Write S3 paths</button>
+        </div>
+        <textarea id="preview" rows="4" readonly placeholder="the lines that will be written" style="margin-top:8px"></textarea>
+      </div>
+
+      <!-- BASEMAP -->
+      <div class="sidebar-section">
+        <div class="section-title">Basemap</div>
+        <div class="basemap-btns">
+          <button class="btn active" onclick="setBasemap('dark', this)">Dark</button>
+          <button class="btn" onclick="setBasemap('satellite', this)">SAT</button>
+          <button class="btn" onclick="setBasemap('osm', this)">OSM</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RESULTS -->
+    <div class="list-area">
+      <div class="list-header">
+        <span>Products <span id="listCount" style="font-weight:400;color:var(--text-dim)"></span></span>
+        <span>
+          <button class="btn" onclick="selectAll(true)">All</button>
+          <button class="btn" onclick="selectAll(false)">None</button>
+        </span>
+      </div>
+      <div class="list-wrap" id="list"><div class="empty">No search yet</div></div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<div class="statusbar">
+  <span id="coords">Move cursor over map</span>
+  <span class="sep">|</span>
+  <span>WGS84</span>
+  <span class="sep">|</span>
+  <span id="selInfo">0 selected</span>
+  <span class="sep">|</span>
+  <span id="pathInfo"></span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script>
+// ─── STATE ───────────────────────────────────────────────────────
+let aoi = null;             // GeoJSON geometry, lon/lat
+let results = [];           // features returned by /api/search
+let selected = new Set();   // product names
+const layersByName = {};    // product name -> Leaflet layer of its footprint
+let config = {};
+
+const $ = id => document.getElementById(id);
+const EMPTY = { type: 'FeatureCollection', features: [] };
+const AOI_STYLE  = { color: '#ff6b35', weight: 2, fillOpacity: 0.05 };
+const FOOT_STYLE = { color: '#64748b', weight: 1, fillOpacity: 0.03 };
+const HOVER_STYLE = { color: '#00d4ff', weight: 2, fillOpacity: 0.12 };
+const SEL_STYLE  = { color: '#4ade80', weight: 2.5, fillOpacity: 0.15 };
+
+// ─── MAP ─────────────────────────────────────────────────────────
+// [tile url, subdomains, css class]. Key-free sources only.
+const OSM = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const BASEMAPS = {
+  dark:      [OSM, 'abc', 'dark-tiles'],
+  satellite: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', '', ''],
+  osm:       [OSM, 'abc', ''],
+};
+const map = L.map('map', { center: [46.5, 2.5], zoom: 6, preferCanvas: false });
+let basemap = null;
+function setBasemap(key, btn) {
+  if (basemap) map.removeLayer(basemap);
+  const [url, subdomains, className] = BASEMAPS[key];
+  basemap = L.tileLayer(url, { maxZoom: 19, subdomains, className, attribution: '' }).addTo(map);
+  basemap.bringToBack();
+  if (btn) {
+    document.querySelectorAll('.basemap-btns .btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+}
+setBasemap('dark');
+L.control.scale({ position: 'bottomright', imperial: false }).addTo(map);
+map.on('mousemove', e => {
+  $('coords').textContent = `${e.latlng.lat.toFixed(5)}°  ${e.latlng.lng.toFixed(5)}°`;
+});
+
+const aoiLayer  = L.geoJSON(EMPTY, { style: AOI_STYLE, interactive: false }).addTo(map);
+const footLayer = L.geoJSON(EMPTY, { style: FOOT_STYLE, onEachFeature: onFootprint }).addTo(map);
+
+// Leaflet.draw: polygon and rectangle only. showArea:false sidesteps a known
+// Leaflet.draw 1.0.4 crash on rectangles with recent Leaflet versions.
+map.addControl(new L.Control.Draw({
+  position: 'topleft',
+  draw: {
+    polygon:   { shapeOptions: AOI_STYLE, showArea: false, allowIntersection: false },
+    rectangle: { shapeOptions: AOI_STYLE, showArea: false },
+    circle: false, circlemarker: false, marker: false, polyline: false,
+  },
+  edit: false,
+}));
+map.on(L.Draw.Event.CREATED, e => {
+  const geom = e.layer.toGeoJSON().geometry;
+  setAoi(geom, false);
+  $('aoiText').value = toWkt(geom);
+  status(`AOI set from the map (${geom.type}).`);
+});
+
+// ─── STATUS ──────────────────────────────────────────────────────
+function status(msg, kind = '') {
+  const el = $('status');
+  el.textContent = msg;
+  el.className = kind;
+  el.title = msg;
+}
+async function guard(fn) {
+  try { await fn(); }
+  catch (e) { status(e.message || String(e), 'err'); console.error(e); }
+}
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const js = await res.json();
+  if (!res.ok) throw new Error(js.error || `HTTP ${res.status}`);
+  return js;
+}
+
+// ─── AOI ─────────────────────────────────────────────────────────
+function setAoi(geom, fit = true) {
+  aoi = geom;
+  aoiLayer.clearLayers();
+  aoiLayer.addData(geom);
+  if (fit) map.fitBounds(aoiLayer.getBounds(), { padding: [30, 30] });
+}
+function useAoiText() {
+  guard(async () => {
+    const js = await api('/api/parse_aoi', { text: $('aoiText').value });
+    setAoi(js.geometry);
+    status(`AOI set from text (${js.type}).`);
+  });
+}
+function clearAll() {
+  aoi = null; results = []; selected.clear();
+  aoiLayer.clearLayers(); footLayer.clearLayers();
+  Object.keys(layersByName).forEach(k => delete layersByName[k]);
+  $('aoiText').value = '';
+  renderList(); syncSelection();
+  status('Cleared.');
+}
+// WKT of a (Multi)Polygon, for the textarea after a draw
+function toWkt(g) {
+  const ring = r => '(' + r.map(c => `${c[0]} ${c[1]}`).join(', ') + ')';
+  if (g.type === 'Polygon') return 'POLYGON (' + g.coordinates.map(ring).join(', ') + ')';
+  if (g.type === 'MultiPolygon')
+    return 'MULTIPOLYGON (' + g.coordinates.map(p => '(' + p.map(ring).join(', ') + ')').join(', ') + ')';
+  return JSON.stringify(g);
+}
+
+// ─── SEARCH ──────────────────────────────────────────────────────
+function search() {
+  guard(async () => {
+    if (!aoi) throw new Error("no AOI: draw one on the map, or paste one and click 'Use this AOI'");
+    if (!$('start').value || !$('end').value) throw new Error('both dates are needed');
+    status('Searching the CDSE catalogue…', 'busy');
+    $('searchBtn').disabled = true;
+    try {
+      const js = await api('/api/search', {
+        aoi, start: $('start').value, end: $('end').value,
+        product_type: $('product').value, mode: $('mode').value || null,
+        orbit_direction: $('orbit').value || null, platforms: $('platform').value || null,
+      });
+      results = js.features; selected.clear();
+      footLayer.clearLayers();
+      Object.keys(layersByName).forEach(k => delete layersByName[k]);
+      footLayer.addData(js);
+      renderList(); syncSelection();
+      const gb = results.reduce((a, f) => a + (f.properties.size_gb || 0), 0);
+      const more = js.truncated ? ' — more in the catalogue, narrow the dates' : '';
+      status(`${results.length} product(s), ${gb.toFixed(0)} GB in total${more}.`);
+    } finally {
+      $('searchBtn').disabled = false;
+    }
+  });
+}
+
+// ─── FOOTPRINTS ──────────────────────────────────────────────────
+function onFootprint(feature, layer) {
+  const name = feature.properties.name;
+  layersByName[name] = layer;
+  layer.bindTooltip(name, { className: 'fp', sticky: true });
+  layer.on('mouseover', () => { if (!selected.has(name)) layer.setStyle(HOVER_STYLE); rowOf(name)?.classList.add('hover'); });
+  layer.on('mouseout',  () => { restyle(name); rowOf(name)?.classList.remove('hover'); });
+  layer.on('click', () => toggle(name));
+}
+function restyle(name) {
+  const layer = layersByName[name];
+  if (!layer) return;
+  layer.setStyle(selected.has(name) ? SEL_STYLE : FOOT_STYLE);
+  if (selected.has(name)) layer.bringToFront();
+}
+
+// ─── LIST ────────────────────────────────────────────────────────
+function rowOf(name) { return document.querySelector(`.item[data-name="${CSS.escape(name)}"]`); }
+function renderList() {
+  const list = $('list');
+  list.innerHTML = '';
+  $('listCount').textContent = results.length ? `· ${results.length}` : '';
+  if (!results.length) { list.innerHTML = '<div class="empty">No product listed</div>'; return; }
+  for (const f of results) {
+    const p = f.properties;
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.dataset.name = p.name;
+    div.title = p.name;
+    const date = p.datetime.slice(0, 16).replace('T', ' ');
+    const orbit = (p.orbit || '?').slice(0, 4);
+    const size = p.size_gb == null ? '?' : `${p.size_gb.toFixed(1)} GB`;
+    div.innerHTML = `
+      <div class="box"></div>
+      <div class="body">
+        <div class="date">${date} · ${p.platform}</div>
+        <div class="sub">${orbit} · rel ${p.relative_orbit ?? '?'} · ${p.product_type} · ${p.polarisations}</div>
+      </div>
+      <div class="size">${size}</div>`;
+    div.onclick = () => toggle(p.name);
+    div.onmouseenter = () => { if (!selected.has(p.name)) layersByName[p.name]?.setStyle(HOVER_STYLE); };
+    div.onmouseleave = () => restyle(p.name);
+    list.appendChild(div);
+  }
+}
+function toggle(name) {
+  if (selected.has(name)) selected.delete(name); else selected.add(name);
+  syncSelection();
+}
+function selectAll(on) {
+  selected.clear();
+  if (on) results.forEach(f => selected.add(f.properties.name));
+  syncSelection();
+}
+function selectedRows() { return results.filter(f => selected.has(f.properties.name)); }
+function syncSelection() {
+  document.querySelectorAll('.item').forEach(el => el.classList.toggle('sel', selected.has(el.dataset.name)));
+  Object.keys(layersByName).forEach(restyle);
+  const rows = selectedRows();
+  $('preview').value = rows.map(f => f.properties.path).join('\n');
+  const gb = rows.reduce((a, f) => a + (f.properties.size_gb || 0), 0);
+  $('selInfo').textContent = rows.length ? `${rows.length} selected · ${gb.toFixed(1)} GB` : '0 selected';
+}
+
+// ─── PATH FILE ───────────────────────────────────────────────────
+function writePaths() {
+  guard(async () => {
+    const rows = selectedRows();
+    if (!rows.length) throw new Error('nothing selected');
+    const js = await api('/api/write', {
+      products: rows.map(f => ({ name: f.properties.name, s3_key: f.properties.s3_key })),
+      path_file: $('pathFile').value,
+      aoi: $('withAoi').checked ? aoi : null,
+    });
+    status(`${js.count} S3 path(s) written to ${js.path}${js.aoi_path ? ' (+ ' + js.aoi_path + ')' : ''}.`);
+    $('pathInfo').textContent = js.path;
+  });
+}
+
+// ─── INIT ────────────────────────────────────────────────────────
+guard(async () => {
+  config = await api('/api/config');
+  map.setView(config.center, config.zoom);
+  $('start').value = config.start;
+  $('end').value = config.end;
+  $('pathFile').value = config.path_file;
+  $('pathInfo').textContent = `${config.path_file} (${config.style})`;
+});
+</script>
+</body>
+</html>

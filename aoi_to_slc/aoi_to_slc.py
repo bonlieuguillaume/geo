@@ -503,7 +503,12 @@ class AoiToSlcUI:
         self.path_file = w.Text(
             description="Path file", value=str(path_file), layout=w.Layout(width="60%")
         )
-        self.with_aoi = w.Checkbox(description="AOI alongside", value=True, indent=False)
+        # The downstream tools take "products + AOI": writing the AOI next to
+        # the list keeps the two together
+        self.with_aoi = w.Checkbox(
+            description="AOI alongside", value=True, indent=False,
+            tooltip="Also write the AOI as <path file>_aoi.geojson, next to the list",
+        )
         self.write_btn = w.Button(
             description="Write S3 paths", icon="file-text", button_style="success"
         )
