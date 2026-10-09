@@ -77,3 +77,10 @@ rewriting an existing line over appending a new one, and drop what no longer hel
   user's chain runs SNAP 13 (COG readable from SNAP 10). If originals are ever
   needed, CDSE OData lists both with `S3Path`: rewrite `search_products` only.
   The module holds everything and the notebook only drives it — not a mirror.
+- `pie_echo_wall/` — SAR tasking: from an orbit (TLE, NORAD id via CelesTrak,
+  mean elements for a satellite not flying yet, or operator ephemerides: OEM,
+  S1 `.EOF`, CSV), the passes over an AOI with zero-Doppler time, look side,
+  incidence and swath coverage. SGP4 (`sgp4`) for propagation, frames,
+  interpolation and SAR geometry in numpy. `tasking.py` holds everything,
+  `tasking.ipynb` (ipyleaflet webmap) and `test_tasking.py` (script, parameters
+  at the top) only drive it.
