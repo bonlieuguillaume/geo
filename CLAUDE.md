@@ -6,10 +6,14 @@ own README before changing anything.
 
 ## Environment
 
-- conda/miniforge env named `geo`, Python 3.11. No single env file: each tool
-  folder carries its own `env_<tool>.yml` (`polygon_to_swaths_bursts/`, `asf/` —
-  the latter covers both tools), all declaring the same env `geo`.
-- Update it with `mamba env update -n geo -f <tool>/env_<tool>.yml`. The user
+- conda/miniforge env named `geo`, Python 3.11. No single env file: several yml
+  files, all declaring the same env `geo`, each covering a set of tools —
+  `polygon_to_swaths_bursts/env_polygon_to_swaths_bursts.yml` (that tool alone),
+  `asf/env_polygon_to_swaths_bursts_and_asf.yml` (+ `asf/`), and
+  `env_polygon_to_swaths_bursts_and_aoi_to_slc.yml` at the root (+ `aoi_to_slc/`,
+  `parallel_download/` with `rclone`, `pie_echo_wall/` with `sgp4`), grouped by
+  tool in comments.
+- Update it with `mamba env update -n geo -f <file>.yml`. The user
   maintains these files and the env themselves: hand them the conda-forge package
   names to add, do not edit the yml files.
 - **Every dependency must be installable from conda-forge.** This is a hard
@@ -69,11 +73,23 @@ rewriting an existing line over appending a new one, and drop what no longer hel
   S3 paths (`/eodata/Sentinel-1/SAR/.../<product>.SAFE`, the downloader's
   convention; `s3://` and bare-key forms optional) to a text file in
   `path_files/`, one per line, plus the AOI as `<name>_aoi.geojson`. **No download
-  here**: the user's downloader, in another repo, takes that file and an output
-  folder. Search = CDSE STAC hit directly with `requests`, anonymous, no
+  here**: `parallel_download/` takes that file and an output folder. Search = CDSE STAC hit directly with `requests`, anonymous, no
   credentials. Not asf_search: no `eodata` paths there. **GRD = the COG variant**,
   the only one in the CDSE STAC — a distinct product from the original GRD (other
   checksum suffix, `IW_GRDH_1S-COG` folder), accepted deliberately since the
   user's chain runs SNAP 13 (COG readable from SNAP 10). If originals are ever
   needed, CDSE OData lists both with `S3Path`: rewrite `search_products` only.
   The module holds everything and the notebook only drives it — not a mirror.
+- `parallel_download/` — downloads the `.SAFE` of an `aoi_to_slc` path file
+  from CDSE with one parallel `rclone copy`, then flattens them into the output
+  folder. Copied from rosarium's `features/download_products` (its source of
+  truth), minus rosarium's fixed `data/raw/` layout and webmap progress hook:
+  a fix made in one is not in the other. Needs `rclone` (conda-forge) and a
+  `cdse` remote configured once per user.
+- `pie_echo_wall/` — SAR tasking: from an orbit (TLE, NORAD id via CelesTrak,
+  mean elements for a satellite not flying yet, or operator ephemerides: OEM,
+  S1 `.EOF`, CSV), the passes over an AOI with zero-Doppler time, look side,
+  incidence and swath coverage. SGP4 (`sgp4`) for propagation, frames,
+  interpolation and SAR geometry in numpy. `tasking.py` holds everything,
+  `tasking.ipynb` (ipyleaflet webmap) and `test_tasking.py` (script, parameters
+  at the top) only drive it.

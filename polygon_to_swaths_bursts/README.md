@@ -126,10 +126,19 @@ kilometre — asymmetrically, since the upstream burst extends past the seam whi
 downstream one starts with a few hundred metres of black-fill *after* it.
 
 So an AOI whose edge falls near a seam may need a burst the strict test misses.
-`coarse=True` (`--coarse`) dilates the footprints by `coarse_margin` (0.02° ≈ 2 km)
-**for the test only**, returning those neighbours; the geometries in the result stay
-undilated. Use it whenever the AOI is not comfortably inside a single burst — one
-extra burst is cheap, and the deburst step handles the duplicated strip cleanly.
+`coarse=True` (`--coarse`) dilates the footprints by `coarse_margin` (2 000 m by
+default) **for the test only**, returning those neighbours; the geometries in the
+result stay undilated. Use it whenever the AOI is not comfortably inside a single
+burst — one extra burst is cheap, and the deburst step handles the duplicated strip
+cleanly.
+
+The margin is given in metres but applied in degrees, since the footprints stay in
+lon/lat: it is converted at the product's mean latitude using the longitude scale
+(111 km × cos φ), the smaller of the two, so that the dilation reaches at least the
+requested distance in every direction. Along the meridian it over-reaches at high
+latitude (2 000 m E-W is 4 000 m N-S at 60°), which is the safe side for a
+recall-oriented test. Converting the margin rather than reprojecting the
+footprints keeps the antimeridian frame (step 7) valid.
 
 ### Known limits
 
@@ -175,7 +184,7 @@ Intersecting swaths: IW1, IW2
 | `--slc-path PATH` | **required** — the `.SAFE` directory or `.zip` archive |
 | `--polygon AOI` | **required** — inline WKT, or a path to a WKT / GeoJSON file |
 | `--coarse` | dilate footprints before the test (favours recall) |
-| `--coarse-margin DEG` | dilation margin in degrees, default `0.02` (~2 km) |
+| `--coarse-margin METRES` | dilation margin in metres, default `2000` |
 | `--json` | print `{swath: [bursts]}` as JSON instead of text |
 | `--geojson PATH` | write the footprints of the selected bursts to a file |
 
@@ -191,7 +200,7 @@ hits, summary = get_intersecting_bursts(
     "product.SAFE",
     "aoi.geojson",        # or a .wkt file, an inline WKT string, or a dict
     coarse=True,          # optional, default False
-    coarse_margin=0.02,   # optional
+    coarse_margin=2000,   # optional, metres
 )
 # summary -> {"IW1": [1, 2], "IW2": [2, 3]}
 # hits    -> GeoDataFrame (swath, polarisation, burst, geometry)
