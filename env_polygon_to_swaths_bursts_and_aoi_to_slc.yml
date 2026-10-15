@@ -14,3 +14,7 @@ dependencies:
   - requests
   - ipyleaflet
   - ipywidgets
+  # parallel_download
+  - rclone
+  # pie_echo_wall 
+  - sgp4
